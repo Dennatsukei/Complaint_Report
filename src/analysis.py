@@ -254,7 +254,7 @@ fig_raw = px.pie(
     names="category",
     values="count",
     color="category",
-    title="客诉问题分类分布（Issue-wise）",
+    title="Complaint by Category（Issue-wise）",
     color_discrete_map=CATEGORY_COLOR_MAP
 )
 
@@ -278,7 +278,7 @@ fig_weighted = px.pie(
     names="category",
     values="weighted_count",
     color="category",
-    title="客诉问题分类分布（Complaint-weighted）",
+    title="Complaint by Category（Complaint-weighted）",
     color_discrete_map=CATEGORY_COLOR_MAP
 )
 
