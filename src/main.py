@@ -9,7 +9,7 @@ from normalizer import normalize_dataframe
 from deduplicator import ComplaintDeduplicator
 from llm_dedup import LLMDeduplicator
 from dedup_resolver import DedupResolver
-from positive_drop import filter_positive
+from filter import filter_positive
 from structurer import LLMStructurer
 
 
