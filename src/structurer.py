@@ -9,7 +9,7 @@ from langchain_core.prompts import ChatPromptTemplate
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-PROMPT_PATH = (PROJECT_ROOT / "prompts" / "structurer.md")
+PROMPT_PATH = (PROJECT_ROOT / "prompts" / "structurer_prompt.md")
 
 load_dotenv(PROJECT_ROOT / ".env")
 API_KEY = os.environ["DEEPSEEK_API_KEY"]

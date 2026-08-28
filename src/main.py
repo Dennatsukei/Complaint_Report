@@ -1,5 +1,6 @@
 import os
 import pandas as pd
+from pathlib import Path
 
 from aggregator import ComplaintAggregator
 from extractor import ComplaintExtractor
@@ -16,8 +17,9 @@ from structurer import LLMStructurer
 # =========================================================
 # Configuration
 # =========================================================
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
-START_FROM = "structure"
+START_FROM = "extract"
 
 STAGES = [
     "extract",
@@ -36,7 +38,7 @@ if START_FROM not in STAGES:
 
 START_INDEX = STAGES.index(START_FROM)
 
-OUTPUT_DIR = "Output"
+OUTPUT_DIR = PROJECT_ROOT / "data" / "processed"
 
 os.makedirs(
     OUTPUT_DIR,
@@ -85,7 +87,7 @@ if START_INDEX <= STAGES.index("extract"):
     # Weekly Reports
     # -----------------------------------------------------
 
-    weekly_path = r"data/raw/weeklyreports"
+    weekly_path = r"data/raw/weekly_reports"
 
     for item in os.listdir(weekly_path):
 

@@ -1,5 +1,6 @@
 import ast
 import pandas as pd
+from pathlib import Path
 
 import plotly.express as px
 from plotly.io import to_html
@@ -8,9 +9,10 @@ from plotly.io import to_html
 # ==================================================
 # 1. Configuration
 # ==================================================
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
-INPUT_FILE = "output/structured.csv"
-OUTPUT_FILE = "visual/dashboard.html"
+INPUT_FILE = PROJECT_ROOT / "data" / "processed" / "structured.csv"
+OUTPUT_FILE = PROJECT_ROOT / "output" /"dashboard.html"
 
 
 CATEGORY_MAP = {
