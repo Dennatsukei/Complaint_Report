@@ -6,24 +6,22 @@ from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate
 
 
-load_dotenv()
 
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+PROMPT_PATH = (PROJECT_ROOT / "prompts" / "dedup_prompt.md")
+
+load_dotenv(PROJECT_ROOT / ".env")
 API_KEY = os.environ["DEEPSEEK_API_KEY"]
 BASE_URL = os.environ["DEEPSEEK_BASE_URL"]
 MODEL = os.environ["DEEPSEEK_MODEL"]
-
-PROMPT_PATH = (
-    Path(__file__).parent
-    / "dedup_prompt.md"
-)
 
 SYSTEM_PROMPT = PROMPT_PATH.read_text(
     encoding="utf-8"
 )
 
 
-class LLMDeduplicator:
 
+class LLMDeduplicator:
     def __init__(self):
 
         self.llm = ChatOpenAI(
