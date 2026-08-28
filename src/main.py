@@ -63,7 +63,7 @@ if START_INDEX <= STAGES.index("extract"):
     # Daily Reports
     # -----------------------------------------------------
 
-    daily_path = "Daily Reports"
+    daily_path = r"data/raw/daily_reports"
 
     for item in os.listdir(daily_path):
 
@@ -85,7 +85,7 @@ if START_INDEX <= STAGES.index("extract"):
     # Weekly Reports
     # -----------------------------------------------------
 
-    weekly_path = "Weekly Reports"
+    weekly_path = r"data/raw/weeklyreports"
 
     for item in os.listdir(weekly_path):
 
@@ -107,7 +107,7 @@ if START_INDEX <= STAGES.index("extract"):
     # Monthly Reports
     # -----------------------------------------------------
 
-    monthly_path = "Monthly Reports"
+    monthly_path = r"data/raw/monthly_reports"
 
     for item in os.listdir(monthly_path):
 
@@ -129,7 +129,7 @@ if START_INDEX <= STAGES.index("extract"):
     # Platform Reviews
     # -----------------------------------------------------
 
-    platform_path = "Platform Reviews"
+    platform_path = r"data/raw/platform_reviews"
 
     for item in os.listdir(platform_path):
 
@@ -152,7 +152,7 @@ if START_INDEX <= STAGES.index("extract"):
     raw_df = aggregator.to_dataframe()
 
     raw_df.to_csv(
-        output_path("complaints.csv"),
+        output_path("aggregated.csv"),
         index=False,
         encoding="utf-8-sig",
     )
@@ -165,12 +165,12 @@ if START_INDEX <= STAGES.index("extract"):
 else:
 
     raw_df = pd.read_csv(
-        output_path("complaints.csv"),
+        output_path("aggregated.csv"),
         encoding="utf-8-sig",
     )
 
     print(
-        f"Loaded complaints.csv: "
+        f"Loaded aggregated.csv: "
         f"{len(raw_df)} records."
     )
 
