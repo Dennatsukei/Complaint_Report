@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.py[cod]
+
+# Virtual environments
+venv/
+.venv/
+
+# IDE
+.vscode/
+.idea/
+
+# Generated files
+*.html
+
+# Large or sensitive data
+data/
+Output/
+
+# Environment variables / API keys
+.env
