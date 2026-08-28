@@ -9,8 +9,8 @@ from plotly.io import to_html
 # 1. Configuration
 # ==================================================
 
-INPUT_FILE = "Output/structured.csv"
-OUTPUT_FILE = "Visual/dashboard.html"
+INPUT_FILE = "output/structured.csv"
+OUTPUT_FILE = "visual/dashboard.html"
 
 
 CATEGORY_MAP = {
