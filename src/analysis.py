@@ -1,18 +1,17 @@
 import ast
 import pandas as pd
-from pathlib import Path
 
 import plotly.express as px
 from plotly.io import to_html
+from config import RuntimePaths
 
 
 # ==================================================
 # 1. Configuration
 # ==================================================
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
-
-INPUT_FILE = PROJECT_ROOT / "data" / "processed" / "structured.csv"
-OUTPUT_FILE = PROJECT_ROOT / "output" /"dashboard.html"
+PATHS = RuntimePaths.from_environment()
+INPUT_FILE = PATHS.stage_file("structured.csv")
+OUTPUT_FILE = PATHS.dashboard_file
 
 
 CATEGORY_MAP = {
@@ -577,6 +576,8 @@ Complaint Analysis Dashboard
 # ==================================================
 # 11. Export dashboard
 # ==================================================
+
+PATHS.ensure_dashboard_dir()
 
 with open(
     OUTPUT_FILE,

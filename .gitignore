@@ -10,12 +10,9 @@ venv/
 .vscode/
 .idea/
 
-# Generated files
-*.html
-
-# Large or sensitive data
-data/
-Output/
+# Local inputs and generated artifacts
+inputs/local/
+outputs/
 
 # Environment variables / API keys
 .env

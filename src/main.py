@@ -1,6 +1,5 @@
 import os
 import pandas as pd
-from pathlib import Path
 
 from aggregator import ComplaintAggregator
 from extractor import ComplaintExtractor
@@ -12,12 +11,14 @@ from llm_dedup import LLMDeduplicator
 from dedup_resolver import DedupResolver
 from filter import filter_positive
 from structurer import LLMStructurer
+from config import RuntimePaths
 
 
 # =========================================================
 # Configuration
 # =========================================================
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
+PATHS = RuntimePaths.from_environment()
+INPUT_DIR = PATHS.input_dir
 
 START_FROM = "extract"
 
@@ -38,19 +39,13 @@ if START_FROM not in STAGES:
 
 START_INDEX = STAGES.index(START_FROM)
 
-OUTPUT_DIR = PROJECT_ROOT / "data" / "processed"
+OUTPUT_DIR = PATHS.run_dir
 
-os.makedirs(
-    OUTPUT_DIR,
-    exist_ok=True,
-)
+PATHS.ensure_run_dir()
 
 
 def output_path(filename):
-    return os.path.join(
-        OUTPUT_DIR,
-        filename,
-    )
+    return PATHS.stage_file(filename)
 
 
 # =========================================================
@@ -65,14 +60,11 @@ if START_INDEX <= STAGES.index("extract"):
     # Daily Reports
     # -----------------------------------------------------
 
-    daily_path = r"data/raw/daily_reports"
+    daily_path = INPUT_DIR / "daily_reports"
 
     for item in os.listdir(daily_path):
 
-        path = os.path.join(
-            daily_path,
-            item,
-        )
+        path = daily_path / item
 
         if not os.path.isfile(path):
             continue
@@ -87,14 +79,11 @@ if START_INDEX <= STAGES.index("extract"):
     # Weekly Reports
     # -----------------------------------------------------
 
-    weekly_path = r"data/raw/weekly_reports"
+    weekly_path = INPUT_DIR / "weekly_reports"
 
     for item in os.listdir(weekly_path):
 
-        path = os.path.join(
-            weekly_path,
-            item,
-        )
+        path = weekly_path / item
 
         if not os.path.isfile(path):
             continue
@@ -109,14 +98,11 @@ if START_INDEX <= STAGES.index("extract"):
     # Monthly Reports
     # -----------------------------------------------------
 
-    monthly_path = r"data/raw/monthly_reports"
+    monthly_path = INPUT_DIR / "monthly_reports"
 
     for item in os.listdir(monthly_path):
 
-        path = os.path.join(
-            monthly_path,
-            item,
-        )
+        path = monthly_path / item
 
         if not os.path.isfile(path):
             continue
@@ -131,14 +117,11 @@ if START_INDEX <= STAGES.index("extract"):
     # Platform Reviews
     # -----------------------------------------------------
 
-    platform_path = r"data/raw/platform_reviews"
+    platform_path = INPUT_DIR / "platform_reviews"
 
     for item in os.listdir(platform_path):
 
-        path = os.path.join(
-            platform_path,
-            item,
-        )
+        path = platform_path / item
 
         if not os.path.isfile(path):
             continue
@@ -761,6 +744,6 @@ print(
 )
 
 print(
-    f"Output directory: "
-    f"{OUTPUT_DIR}"
+        f"Run output directory: "
+        f"{OUTPUT_DIR}"
 )
