@@ -1,33 +1,16 @@
 import json
-import os
-from pathlib import Path
 
-from dotenv import load_dotenv
-from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate
+from llm_runtime import create_chat_model, load_system_prompt, process_batch
 
 
-
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
-PROMPT_PATH = (PROJECT_ROOT / "prompts" / "structurer_prompt.md")
-
-load_dotenv(PROJECT_ROOT / ".env")
-API_KEY = os.environ["DEEPSEEK_API_KEY"]
-BASE_URL = os.environ["DEEPSEEK_BASE_URL"]
-MODEL = os.environ["DEEPSEEK_MODEL"]
-
-SYSTEM_PROMPT = PROMPT_PATH.read_text(encoding="utf-8")
+SYSTEM_PROMPT = load_system_prompt("structurer_prompt.md")
 
 
 
 class LLMStructurer:
     def __init__(self):
-        self.llm = ChatOpenAI(
-            model=MODEL,
-            api_key=API_KEY, # type: ignore
-            base_url=BASE_URL,
-            temperature=0,
-        )
+        self.llm = create_chat_model()
 
         self.prompt = ChatPromptTemplate.from_messages([
             ("system", SYSTEM_PROMPT),
@@ -53,31 +36,14 @@ class LLMStructurer:
             for content in contents
         ]
 
-        results = [None] * len(messages)
-
-        completed = 0
-        total = len(messages)
-
-        for index, response in self.llm.batch_as_completed(
+        return process_batch(
+            self.llm,
             messages,
-            config={"max_concurrency": max_concurrency},
-        ):
-            results[index] = self.parse_response(
-                response.content
-            )
-
-            completed += 1
-
-            print(
-                f"Structuring progress: "
-                f"{completed}/{total}",
-                end="\r",
-                flush=True,
-            )
-
-        print()
-
-        return results
+            lambda _, text: self.parse_response(text),
+            max_concurrency=max_concurrency,
+            progress_label="Structuring progress",
+            finish_with_newline=True,
+        )
 
     @staticmethod
     def parse_response(text):

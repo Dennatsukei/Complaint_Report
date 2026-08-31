@@ -1,28 +1,10 @@
-from pathlib import Path
-import os
 import json
 
-
-from dotenv import load_dotenv
-from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate
+from llm_runtime import create_chat_model, load_system_prompt, process_batch
 
 
-# ==================================================
-# Configuration
-# ==================================================
-
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
-
-PROMPT_PATH = (PROJECT_ROOT / "prompts" / "split_prompt.md")
-
-load_dotenv(PROJECT_ROOT / ".env")
-
-API_KEY = os.environ["DEEPSEEK_API_KEY"]
-BASE_URL = os.environ["DEEPSEEK_BASE_URL"]
-MODEL = os.environ["DEEPSEEK_MODEL"]
-
-SYSTEM_PROMPT = PROMPT_PATH.read_text(encoding="utf-8")
+SYSTEM_PROMPT = load_system_prompt("split_prompt.md")
 
 
 # ==================================================
@@ -31,12 +13,7 @@ SYSTEM_PROMPT = PROMPT_PATH.read_text(encoding="utf-8")
 
 class LLMSplit:
     def __init__(self):
-        self.llm = ChatOpenAI(
-            model=MODEL,
-            api_key=API_KEY,
-            base_url=BASE_URL,
-            temperature=0,
-        )
+        self.llm = create_chat_model()
 
         self.prompt = (
             ChatPromptTemplate.from_messages([
@@ -101,51 +78,17 @@ class LLMSplit:
             for content in contents
         ]
 
-        results = [
-            None
-        ] * len(messages)
-
-        total = len(messages)
-
-        completed = 0
-
-
-        for index, response in (
-            self.llm.batch_as_completed(
-                messages,
-                config={
-                    "max_concurrency":
-                        max_concurrency,
-                },
-            )
-        ):
-
-            split_points = (
-                self.parse_response(
-                    response.content
-                )
-            )
-
-            results[index] = (
-                self.split_content(
-                    contents[index],
-                    split_points,
-                )
-            )
-
-            completed += 1
-
-            print(
-                f"Split progress: "
-                f"{completed}/{total}",
-                end="\r",
-                flush=True,
-            )
-
-
-        print()
-
-        return results
+        return process_batch(
+            self.llm,
+            messages,
+            lambda index, text: self.split_content(
+                contents[index],
+                self.parse_response(text),
+            ),
+            max_concurrency=max_concurrency,
+            progress_label="Split progress",
+            finish_with_newline=True,
+        )
 
 
     # ==================================================
