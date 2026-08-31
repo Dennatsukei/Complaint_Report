@@ -4,7 +4,6 @@ import os
 from collections.abc import Callable, Sequence
 from typing import Any
 
-from dotenv import load_dotenv
 from langchain_openai import ChatOpenAI
 
 from config import RuntimePaths
@@ -19,9 +18,6 @@ def load_system_prompt(filename: str) -> str:
 
 def create_chat_model() -> ChatOpenAI:
     """Create the project's deterministic DeepSeek-compatible chat client."""
-    paths = RuntimePaths.from_environment()
-    load_dotenv(paths.project_root / ".env")
-
     required_keys = (
         "DEEPSEEK_API_KEY",
         "DEEPSEEK_BASE_URL",

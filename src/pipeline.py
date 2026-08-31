@@ -58,14 +58,44 @@ def resolve_start_from() -> str:
     return start_from
 
 
-def _load_stage(paths, filename, label):
+def resolve_end_from(start_from: str) -> str:
+    end_from = os.getenv("END_FROM", STAGES[-1])
+
+    if end_from not in STAGES:
+        raise ValueError(
+            f"Invalid END_FROM: {end_from}"
+        )
+
+    if STAGES.index(end_from) < STAGES.index(start_from):
+        raise ValueError(
+            "END_FROM must not be earlier than START_FROM"
+        )
+
+    return end_from
+
+
+def _load_stage(paths, stage_name, filename):
+    path = paths.stage_file(filename)
+
+    if not path.exists():
+        raise FileNotFoundError(
+            f"Missing upstream artifact for stage "
+            f"'{stage_name}'.\n"
+            f"Expected file: {path}\n"
+            f"No upstream outputs exist in this run "
+            f"directory. Run the full pipeline first to "
+            f"generate them, for example:\n"
+            f"  $env:START_FROM = 'extract'; "
+            f"$env:END_FROM = 'structure'"
+        )
+
     df = pd.read_csv(
-        paths.stage_file(filename),
+        path,
         encoding="utf-8-sig",
     )
 
     print(
-        f"Loaded {label}: "
+        f"Loaded {stage_name}: "
         f"{len(df)} records."
     )
 
@@ -667,11 +697,12 @@ def issue_review_stage(paths, structured_df, filtered_df):
     return review_df
 
 
-def write_run_summary(paths, start_from, counts):
+def write_run_summary(paths, start_from, end_from, counts):
     summary = {
         "run_id": paths.run_id,
         "input_dir": str(paths.input_dir),
         "start_from": start_from,
+        "end_from": end_from,
         "created_at": datetime.now().isoformat(
             timespec="seconds"
         ),
@@ -717,101 +748,141 @@ def run_pipeline(paths=None):
     paths.ensure_run_dir()
 
     start_from = resolve_start_from()
+    end_from = resolve_end_from(start_from)
     start_index = STAGES.index(start_from)
+    end_index = STAGES.index(end_from)
 
-    if start_index <= STAGES.index("extract"):
+    if start_index <= STAGES.index("extract") <= end_index:
         raw_df = extract_stage(paths)
-    else:
+    elif STAGES.index("extract") < start_index:
         raw_df = _load_stage(
             paths,
-            INGESTED_FILE,
+            "extract",
             INGESTED_FILE,
         )
-
-    if start_index <= STAGES.index("process"):
-        processed_df = process_stage(paths, raw_df)
     else:
+        raw_df = None
+
+    if start_index <= STAGES.index("process") <= end_index:
+        processed_df = process_stage(paths, raw_df)
+    elif STAGES.index("process") < start_index:
         processed_df = _load_stage(
             paths,
-            PREPARED_FILE,
+            "process",
             PREPARED_FILE,
         )
-
-    if start_index <= STAGES.index("split"):
-        split_df = split_stage(paths, processed_df)
     else:
+        processed_df = None
+
+    if start_index <= STAGES.index("split") <= end_index:
+        split_df = split_stage(paths, processed_df)
+    elif STAGES.index("split") < start_index:
         split_df = _load_stage(
             paths,
-            SPLIT_COMPLAINTS_FILE,
+            "split",
             SPLIT_COMPLAINTS_FILE,
         )
-
-    if start_index <= STAGES.index("normalize"):
-        normalized_df = normalize_stage(paths, split_df)
     else:
+        split_df = None
+
+    if start_index <= STAGES.index("normalize") <= end_index:
+        normalized_df = normalize_stage(paths, split_df)
+    elif STAGES.index("normalize") < start_index:
         normalized_df = _load_stage(
             paths,
-            NORMALIZED_FILE,
+            "normalize",
             NORMALIZED_FILE,
         )
+    else:
+        normalized_df = None
 
-    if start_index <= STAGES.index("dedup"):
+    if start_index <= STAGES.index("dedup") <= end_index:
         deduplicated_df, dedup_stats = (
             dedup_stage(paths, normalized_df)
         )
-    else:
+    elif STAGES.index("dedup") < start_index:
         deduplicated_df = _load_stage(
             paths,
-            DEDUPLICATED_FILE,
+            "dedup",
             DEDUPLICATED_FILE,
         )
         dedup_stats = {}
+    else:
+        deduplicated_df = None
+        dedup_stats = {}
 
-    if start_index <= STAGES.index("filter"):
+    if start_index <= STAGES.index("filter") <= end_index:
         filtered_df = filter_stage(
             paths,
             deduplicated_df,
         )
-    else:
+    elif STAGES.index("filter") < start_index:
         filtered_df = _load_stage(
             paths,
-            FILTERED_FILE,
+            "filter",
             FILTERED_FILE,
         )
+    else:
+        filtered_df = None
 
-    if start_index <= STAGES.index("structure"):
+    if start_index <= STAGES.index("structure") <= end_index:
         structured_df = structure_stage(
             paths,
             filtered_df,
         )
-    else:
+    elif STAGES.index("structure") < start_index:
         structured_df = _load_stage(
             paths,
-            STRUCTURED_FILE,
+            "structure",
             STRUCTURED_FILE,
         )
+    else:
+        structured_df = None
 
-    issue_review_df = issue_review_stage(
-        paths,
-        structured_df,
-        filtered_df,
-    )
+    if (
+        structured_df is not None
+        and filtered_df is not None
+    ):
+        issue_review_df = issue_review_stage(
+            paths,
+            structured_df,
+            filtered_df,
+        )
+    else:
+        issue_review_df = pd.DataFrame()
 
-    counts = {
-        "ingested": len(raw_df),
-        "prepared": len(processed_df),
-        "split": len(split_df),
-        "normalized": len(normalized_df),
-        "deduplicated": len(deduplicated_df),
-        "filtered": len(filtered_df),
-        "structured": len(structured_df),
-        "issues": len(issue_review_df),
-        **dedup_stats,
-    }
+    counts = {}
+
+    if raw_df is not None:
+        counts["ingested"] = len(raw_df)
+
+    if processed_df is not None:
+        counts["prepared"] = len(processed_df)
+
+    if split_df is not None:
+        counts["split"] = len(split_df)
+
+    if normalized_df is not None:
+        counts["normalized"] = len(normalized_df)
+
+    if deduplicated_df is not None:
+        counts["deduplicated"] = len(deduplicated_df)
+
+    if filtered_df is not None:
+        counts["filtered"] = len(filtered_df)
+
+    if structured_df is not None:
+        counts["structured"] = len(structured_df)
+
+    if not issue_review_df.empty:
+        counts["issues"] = len(issue_review_df)
+
+    counts.update(dedup_stats)
 
     write_run_summary(
         paths,
         start_from,
+        end_from,
         counts,
     )
 
@@ -819,10 +890,16 @@ def run_pipeline(paths=None):
     print("PIPELINE COMPLETE")
     print("=" * 80)
 
-    print(
-        f"Final structured complaints: "
-        f"{len(structured_df)}"
-    )
+    if structured_df is not None:
+        print(
+            f"Final structured complaints: "
+            f"{len(structured_df)}"
+        )
+    else:
+        print(
+            f"Completed stages through: "
+            f"{STAGES[end_index]}"
+        )
 
     print(
         f"Run output directory: "

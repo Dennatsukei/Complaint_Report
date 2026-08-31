@@ -1,8 +1,14 @@
 """Shared runtime configuration for pipeline and reporting scripts."""
 
-from dataclasses import dataclass
 import os
+from dataclasses import dataclass
 from pathlib import Path
+
+from dotenv import load_dotenv
+
+
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+load_dotenv(PROJECT_ROOT / ".env")
 
 
 DEFAULT_INPUT_DIR = "inputs/samples"
@@ -35,7 +41,7 @@ class RuntimePaths:
 
     @classmethod
     def from_environment(cls) -> "RuntimePaths":
-        project_root = Path(__file__).resolve().parent.parent
+        project_root = PROJECT_ROOT
         input_dir = _resolve_path(
             project_root,
             os.getenv("INPUT_DIR", DEFAULT_INPUT_DIR),
