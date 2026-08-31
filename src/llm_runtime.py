@@ -19,9 +19,9 @@ def load_system_prompt(filename: str) -> str:
 def create_chat_model() -> ChatOpenAI:
     """Create the project's deterministic DeepSeek-compatible chat client."""
     required_keys = (
-        "DEEPSEEK_API_KEY",
-        "DEEPSEEK_BASE_URL",
-        "DEEPSEEK_MODEL",
+        "LLM_API_KEY",
+        "LLM_BASE_URL",
+        "LLM_MODEL",
     )
     missing_keys = [key for key in required_keys if not os.getenv(key)]
 
@@ -30,9 +30,9 @@ def create_chat_model() -> ChatOpenAI:
         raise RuntimeError(f"Missing required LLM configuration: {keys}")
 
     return ChatOpenAI(
-        model=os.environ["DEEPSEEK_MODEL"],
-        api_key=os.environ["DEEPSEEK_API_KEY"],
-        base_url=os.environ["DEEPSEEK_BASE_URL"],
+        model=os.environ["LLM_MODEL"],
+        api_key=os.environ["LLM_API_KEY"],
+        base_url=os.environ["LLM_BASE_URL"],
         temperature=0,
     )
 

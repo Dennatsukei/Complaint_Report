@@ -707,7 +707,7 @@ def write_run_summary(paths, start_from, end_from, counts):
             timespec="seconds"
         ),
         "llm_model": os.getenv(
-            "DEEPSEEK_MODEL",
+            "LLM_MODEL",
             "unknown",
         ),
         "counts": counts,

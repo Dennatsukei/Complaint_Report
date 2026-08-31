@@ -2,9 +2,12 @@
 
 import getpass
 import os
+import subprocess
+import sys
 from pathlib import Path
 
 from config import PROJECT_ROOT, RuntimePaths
+from fields import STRUCTURED_FILE
 from pipeline import (
     STAGES,
     resolve_end_from,
@@ -19,9 +22,9 @@ DEFAULT_BASE_URL = "https://api.deepseek.com/v1"
 DEFAULT_MODEL = "deepseek-chat"
 
 LLM_ENV_KEYS = (
-    "DEEPSEEK_API_KEY",
-    "DEEPSEEK_BASE_URL",
-    "DEEPSEEK_MODEL",
+    "LLM_API_KEY",
+    "LLM_BASE_URL",
+    "LLM_MODEL",
 )
 
 ENV_FILE = PROJECT_ROOT / ".env"
@@ -118,12 +121,12 @@ def _prompt_llm_keys(overrides: dict[str, str]) -> None:
         return
 
     for key in missing:
-        if key == "DEEPSEEK_API_KEY":
-            value = getpass.getpass("  DEEPSEEK_API_KEY: ").strip()
+        if key == "LLM_API_KEY":
+            value = getpass.getpass("  LLM_API_KEY: ").strip()
         else:
             default = (
                 DEFAULT_BASE_URL
-                if key == "DEEPSEEK_BASE_URL"
+                if key == "LLM_BASE_URL"
                 else DEFAULT_MODEL
             )
             value = _read_input(f"  {key} [{default}]: ").strip()
@@ -201,10 +204,37 @@ def _ensure_llm_configuration() -> bool:
     print(
         "\n未配置 LLM，无法完成拆分、去重、结构化阶段。\n"
         "请重新运行并选择“设置环境变量后再运行”，\n"
-        "或在 .env 中配置 DEEPSEEK_API_KEY / DEEPSEEK_BASE_URL / DEEPSEEK_MODEL。"
+        "或在 .env 中配置 LLM_API_KEY / LLM_BASE_URL / LLM_MODEL。"
     )
 
     return False
+
+
+def _generate_dashboard(paths: RuntimePaths) -> None:
+    structured_path = paths.stage_file(STRUCTURED_FILE)
+
+    if not structured_path.exists():
+        print(
+            "\nDashboard 未生成：当前运行没有包含 structure 阶段，"
+            "缺少结构化结果文件。"
+        )
+        return
+
+    print("\n正在生成 Dashboard...")
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(PROJECT_ROOT / "src" / "analysis.py"),
+        ],
+        check=False,
+    )
+
+    if result.returncode != 0:
+        print(
+            "\nDashboard 生成失败，请检查结构化结果后重试。"
+        )
+        raise SystemExit(result.returncode)
 
 
 def main() -> None:
@@ -264,6 +294,7 @@ def main() -> None:
 
     paths = RuntimePaths.from_environment()
     run_pipeline(paths)
+    _generate_dashboard(paths)
 
 
 if __name__ == "__main__":
