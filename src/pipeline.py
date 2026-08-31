@@ -1,14 +1,34 @@
 """Stage orchestration for the complaint processing pipeline."""
 
+import ast
+import json
 import os
+from datetime import datetime
 
 import pandas as pd
 
 from config import RuntimePaths
 from dedup_resolver import DedupResolver
 from deduplicator import ComplaintDeduplicator
-from fields import METADATA_COLUMNS, STRUCTURED_METADATA_COLUMNS
-from filter import filter_positive
+from fields import (
+    ALL_ARTIFACTS,
+    DEDUP_AUDIT_FILE,
+    DEDUP_CANDIDATES_FILE,
+    DEDUPLICATED_FILE,
+    FILTER_AUDIT_FILE,
+    FILTERED_FILE,
+    INGESTED_FILE,
+    ISSUE_REVIEW_FILE,
+    METADATA_COLUMNS,
+    NORMALIZED_FILE,
+    PREPARED_FILE,
+    RUN_SUMMARY_FILE,
+    SPLIT_AUDIT_FILE,
+    SPLIT_COMPLAINTS_FILE,
+    STRUCTURED_FILE,
+    STRUCTURED_METADATA_COLUMNS,
+)
+from filter import filter_positive_audited
 from ingestion import ComplaintAggregator, ComplaintExtractor
 from llm_dedup import LLMDeduplicator
 from split import LLMSplit
@@ -111,8 +131,8 @@ def extract_stage(paths):
     return _save_stage(
         raw_df,
         paths,
-        "aggregated.csv",
-        f"Extracted and aggregated: "
+        INGESTED_FILE,
+        f"Ingested and aggregated: "
         f"{len(raw_df)} records.",
     )
 
@@ -136,8 +156,8 @@ def process_stage(paths, raw_df):
     return _save_stage(
         processed_df,
         paths,
-        "processed.csv",
-        f"Processed: "
+        PREPARED_FILE,
+        f"Prepared: "
         f"{len(processed_df)} records.",
     )
 
@@ -154,63 +174,94 @@ def split_stage(paths, processed_df):
         f"{len(contents)} complaints..."
     )
 
-    parts_list = splitter.split_batch(
+    details_list = splitter.split_batch_audited(
         contents,
         max_concurrency=50,
     )
 
     split_records = []
+    audit_records = []
 
-    for (_, record), parts in zip(
+    for (_, record), details in zip(
         processed_df.iterrows(),
-        parts_list,
+        details_list,
     ):
+
+        parts = details["parts"]
+        anchors = details["anchors"]
+
+        if parts == [None]:
+            parts = [record["raw_content"]]
 
         metadata = {
             column: record[column]
             for column in METADATA_COLUMNS
         }
 
-        if parts == [None]:
+        for j, content in enumerate(
+            parts,
+            start=1,
+        ):
 
             split_records.append({
                 **metadata,
+                "source_complaint_id": record["complaint_id"],
                 "complaint_id": (
-                    f"{record['record_id']}-1"
+                    f"{record['record_id']}-{j}"
                 ),
                 "record_id": record["record_id"],
-                "content": record["raw_content"],
+                "content": content,
                 "raw_content": record["raw_content"],
             })
 
-        else:
-
-            for j, content in enumerate(
+        audit_records.append({
+            "record_id": record["record_id"],
+            "source_complaint_id": record["complaint_id"],
+            "source_file": record["source_file"],
+            "report_type": record["report_type"],
+            "incident_date": record["incident_date"],
+            "decision": (
+                "split"
+                if len(parts) > 1
+                else "no_split"
+            ),
+            "part_count": len(parts),
+            "anchors": json.dumps(
+                anchors,
+                ensure_ascii=False,
+            ),
+            "parts": json.dumps(
                 parts,
-                start=1,
-            ):
-
-                split_records.append({
-                    **metadata,
-                    "complaint_id": (
-                        f"{record['record_id']}-{j}"
-                    ),
-                    "record_id": record["record_id"],
-                    "content": content,
-                    "raw_content": record["raw_content"],
-                })
+                ensure_ascii=False,
+            ),
+            "raw_content": record["raw_content"],
+        })
 
     split_df = pd.DataFrame(
         split_records
     )
 
-    return _save_stage(
+    audit_df = pd.DataFrame(
+        audit_records
+    )
+
+    _save_stage(
         split_df,
         paths,
-        "split.csv",
+        SPLIT_COMPLAINTS_FILE,
         f"Split: "
         f"{len(split_df)} complaints.",
     )
+
+    _save_stage(
+        audit_df,
+        paths,
+        SPLIT_AUDIT_FILE,
+        f"Split audit: "
+        f"{len(audit_df)} records.",
+    )
+
+    return split_df
 
 
 def normalize_stage(paths, split_df):
@@ -221,7 +272,7 @@ def normalize_stage(paths, split_df):
     return _save_stage(
         normalized_df,
         paths,
-        "normalized.csv",
+        NORMALIZED_FILE,
         f"Normalized: "
         f"{len(normalized_df)} complaints.",
     )
@@ -238,14 +289,6 @@ def dedup_stage(paths, normalized_df):
 
     candidates_df = (
         deduplicator.generate_candidates()
-    )
-
-    _save_stage(
-        candidates_df,
-        paths,
-        "dedup_candidates.csv",
-        f"Dedup candidates: "
-        f"{len(candidates_df)} pairs.",
     )
 
     print(
@@ -293,44 +336,58 @@ def dedup_stage(paths, normalized_df):
             )
         )
 
-        llm_results_df = pd.DataFrame({
-            "complaint_a": candidates_df[
-                "complaint_a"
-            ].values,
-
-            "complaint_b": candidates_df[
-                "complaint_b"
-            ].values,
-
-            "same_event": same_events,
-        })
-
     else:
 
-        llm_results_df = pd.DataFrame(
+        same_events = []
+
+    candidates_df = candidates_df.copy()
+    candidates_df["same_event"] = same_events
+
+    _save_stage(
+        candidates_df,
+        paths,
+        DEDUP_CANDIDATES_FILE,
+        f"Dedup candidates: "
+        f"{len(candidates_df)} pairs.",
+    )
+
+    llm_results_df = (
+        candidates_df[
+            [
+                "complaint_a",
+                "complaint_b",
+                "same_event",
+            ]
+        ].copy()
+        if not candidates_df.empty
+        else pd.DataFrame(
             columns=[
                 "complaint_a",
                 "complaint_b",
                 "same_event",
             ]
         )
+    )
 
-    _save_stage(
-        llm_results_df,
-        paths,
-        "llm_dedup_results.csv",
+    llm_yes = int(
+        llm_results_df["same_event"].sum()
+    )
+
+    llm_no = int(
+        (~llm_results_df["same_event"]).sum()
+    )
+
+    print(
         f"LLM dedup completed: "
-        f"{len(llm_results_df)} pairs.",
+        f"{len(llm_results_df)} pairs."
     )
 
     print(
-        f"LLM YES: "
-        f"{llm_results_df['same_event'].sum()}"
+        f"LLM YES: {llm_yes}"
     )
 
     print(
-        f"LLM NO: "
-        f"{(~llm_results_df['same_event']).sum()}"
+        f"LLM NO: {llm_no}"
     )
 
     resolver = DedupResolver(
@@ -351,7 +408,7 @@ def dedup_stage(paths, normalized_df):
     _save_stage(
         dedup_audit_df,
         paths,
-        "dedup_audit.csv",
+        DEDUP_AUDIT_FILE,
         f"Dedup audit records: "
         f"{len(dedup_audit_df)}",
     )
@@ -359,7 +416,7 @@ def dedup_stage(paths, normalized_df):
     _save_stage(
         deduplicated_df,
         paths,
-        "deduplicated.csv",
+        DEDUPLICATED_FILE,
         f"Final complaints: "
         f"{len(deduplicated_df)}",
     )
@@ -406,21 +463,39 @@ def dedup_stage(paths, normalized_df):
         "Dedup integrity check: OK"
     )
 
-    return deduplicated_df
+    stats = {
+        "candidates": len(candidates_df),
+        "llm_yes": llm_yes,
+        "llm_no": llm_no,
+    }
+
+    return deduplicated_df, stats
 
 
 def filter_stage(paths, deduplicated_df):
-    filtered_df = filter_positive(
-        deduplicated_df
+    filtered_df, audit_df = (
+        filter_positive_audited(
+            deduplicated_df
+        )
     )
 
-    return _save_stage(
+    _save_stage(
         filtered_df,
         paths,
-        "filtered.csv",
+        FILTERED_FILE,
         f"Filtered: "
         f"{len(filtered_df)} records.",
     )
+
+    _save_stage(
+        audit_df,
+        paths,
+        FILTER_AUDIT_FILE,
+        f"Filter audit: "
+        f"{len(audit_df)} records.",
+    )
+
+    return filtered_df
 
 
 def structure_stage(paths, filtered_df):
@@ -484,7 +559,7 @@ def structure_stage(paths, filtered_df):
     _save_stage(
         structured_df,
         paths,
-        "structured.csv",
+        STRUCTURED_FILE,
         f"Structured complaints: "
         f"{len(structured_df)}",
     )
@@ -503,6 +578,136 @@ def structure_stage(paths, filtered_df):
     return structured_df
 
 
+def _parse_issues(value):
+    if value is None:
+        return []
+
+    if isinstance(value, list):
+        return value
+
+    if isinstance(value, str):
+        try:
+            return ast.literal_eval(value)
+        except (ValueError, SyntaxError):
+            return []
+
+    return []
+
+
+def issue_review_stage(paths, structured_df, filtered_df):
+    content_by_id = dict(
+        zip(
+            filtered_df["complaint_id"],
+            filtered_df["content"],
+        )
+    )
+
+    review_records = []
+
+    for _, row in structured_df.iterrows():
+
+        issues = _parse_issues(
+            row.get("issues")
+        )
+
+        issue_count = len(issues)
+
+        for issue in issues:
+
+            review_records.append({
+                "complaint_id": row["complaint_id"],
+                "record_id": row["record_id"],
+                "source_complaint_id": (
+                    row.get("source_complaint_id")
+                ),
+                "incident_date": row.get(
+                    "incident_date"
+                ),
+                "source": row.get("source"),
+                "source_file": row.get(
+                    "source_file"
+                ),
+                "report_type": row.get(
+                    "report_type"
+                ),
+                "platform": row.get("platform"),
+                "score": row.get("score"),
+                "room_type": row.get("room_type"),
+                "category": issue.get("category"),
+                "subcategory": issue.get(
+                    "subcategory"
+                ),
+                "responsible_department": issue.get(
+                    "responsible_department"
+                ),
+                "primary": issue.get("primary"),
+                "issue_count": issue_count,
+                "weight": (
+                    1 / issue_count
+                    if issue_count
+                    else 0
+                ),
+                "content": content_by_id.get(
+                    row["complaint_id"]
+                ),
+            })
+
+    review_df = pd.DataFrame(
+        review_records
+    )
+
+    _save_stage(
+        review_df,
+        paths,
+        ISSUE_REVIEW_FILE,
+        f"Issue review rows: "
+        f"{len(review_df)}.",
+    )
+
+    return review_df
+
+
+def write_run_summary(paths, start_from, counts):
+    summary = {
+        "run_id": paths.run_id,
+        "input_dir": str(paths.input_dir),
+        "start_from": start_from,
+        "created_at": datetime.now().isoformat(
+            timespec="seconds"
+        ),
+        "llm_model": os.getenv(
+            "DEEPSEEK_MODEL",
+            "unknown",
+        ),
+        "counts": counts,
+        "artifacts": sorted(
+            name
+            for name in ALL_ARTIFACTS
+            if (
+                paths.run_dir / name
+            ).exists()
+        ),
+    }
+
+    summary_path = (
+        paths.run_dir / RUN_SUMMARY_FILE
+    )
+
+    summary_path.write_text(
+        json.dumps(
+            summary,
+            ensure_ascii=False,
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    print(
+        f"Run summary saved: "
+        f"{summary_path}"
+    )
+
+
 # =========================================================
 # Orchestration
 # =========================================================
@@ -519,8 +724,8 @@ def run_pipeline(paths=None):
     else:
         raw_df = _load_stage(
             paths,
-            "aggregated.csv",
-            "aggregated.csv",
+            INGESTED_FILE,
+            INGESTED_FILE,
         )
 
     if start_index <= STAGES.index("process"):
@@ -528,8 +733,8 @@ def run_pipeline(paths=None):
     else:
         processed_df = _load_stage(
             paths,
-            "processed.csv",
-            "processed.csv",
+            PREPARED_FILE,
+            PREPARED_FILE,
         )
 
     if start_index <= STAGES.index("split"):
@@ -537,8 +742,8 @@ def run_pipeline(paths=None):
     else:
         split_df = _load_stage(
             paths,
-            "split.csv",
-            "split.csv",
+            SPLIT_COMPLAINTS_FILE,
+            SPLIT_COMPLAINTS_FILE,
         )
 
     if start_index <= STAGES.index("normalize"):
@@ -546,36 +751,69 @@ def run_pipeline(paths=None):
     else:
         normalized_df = _load_stage(
             paths,
-            "normalized.csv",
-            "normalized.csv",
+            NORMALIZED_FILE,
+            NORMALIZED_FILE,
         )
 
     if start_index <= STAGES.index("dedup"):
-        deduplicated_df = dedup_stage(paths, normalized_df)
+        deduplicated_df, dedup_stats = (
+            dedup_stage(paths, normalized_df)
+        )
     else:
         deduplicated_df = _load_stage(
             paths,
-            "deduplicated.csv",
-            "deduplicated.csv",
+            DEDUPLICATED_FILE,
+            DEDUPLICATED_FILE,
         )
+        dedup_stats = {}
 
     if start_index <= STAGES.index("filter"):
-        filtered_df = filter_stage(paths, deduplicated_df)
+        filtered_df = filter_stage(
+            paths,
+            deduplicated_df,
+        )
     else:
         filtered_df = _load_stage(
             paths,
-            "filtered.csv",
-            "filtered.csv",
+            FILTERED_FILE,
+            FILTERED_FILE,
         )
 
     if start_index <= STAGES.index("structure"):
-        structured_df = structure_stage(paths, filtered_df)
+        structured_df = structure_stage(
+            paths,
+            filtered_df,
+        )
     else:
         structured_df = _load_stage(
             paths,
-            "structured.csv",
-            "structured.csv",
+            STRUCTURED_FILE,
+            STRUCTURED_FILE,
         )
+
+    issue_review_df = issue_review_stage(
+        paths,
+        structured_df,
+        filtered_df,
+    )
+
+    counts = {
+        "ingested": len(raw_df),
+        "prepared": len(processed_df),
+        "split": len(split_df),
+        "normalized": len(normalized_df),
+        "deduplicated": len(deduplicated_df),
+        "filtered": len(filtered_df),
+        "structured": len(structured_df),
+        "issues": len(issue_review_df),
+        **dedup_stats,
+    }
+
+    write_run_summary(
+        paths,
+        start_from,
+        counts,
+    )
 
     print("\n" + "=" * 80)
     print("PIPELINE COMPLETE")

@@ -1,6 +1,23 @@
 import pandas as pd
 
 
+AUDIT_COLUMNS = [
+    "complaint_a",
+    "complaint_b",
+    "source_a",
+    "source_b",
+    "source_file_a",
+    "source_file_b",
+    "incident_date",
+    "content_a",
+    "content_b",
+    "same_event",
+    "kept",
+    "removed",
+    "reason",
+]
+
+
 class DedupResolver:
 
     def __init__(
@@ -198,7 +215,8 @@ class DedupResolver:
             )
 
         audit_df = pd.DataFrame(
-            resolved
+            resolved,
+            columns=AUDIT_COLUMNS,
         )
 
         return (

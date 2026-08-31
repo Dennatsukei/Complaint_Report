@@ -10,7 +10,7 @@ from config import RuntimePaths
 # 1. Configuration
 # ==================================================
 PATHS = RuntimePaths.from_environment()
-INPUT_FILE = PATHS.stage_file("structured.csv")
+INPUT_FILE = PATHS.stage_file("07_structured_complaints.csv")
 OUTPUT_FILE = PATHS.dashboard_file
 
 

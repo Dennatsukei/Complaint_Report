@@ -1,6 +1,20 @@
 import pandas as pd
 
 
+CANDIDATE_COLUMNS = [
+    "complaint_a",
+    "complaint_b",
+    "date",
+    "source_a",
+    "source_b",
+    "source_file_a",
+    "source_file_b",
+    "room_a",
+    "room_b",
+    "candidate_reason",
+]
+
+
 class ComplaintDeduplicator:
 
     def __init__(self, df):
@@ -66,18 +80,17 @@ class ComplaintDeduplicator:
 
         return self.df
 
-    def is_candidate(self, a, b):
-
+    def _evaluate_candidate(self, a, b):
         # Same source file cannot represent
         # the same external record.
         if a["source_file"] == b["source_file"]:
-            return False
+            return False, "same_source_file"
 
         if not self.same_date(
             a["incident_date"],
             b["incident_date"],
         ):
-            return False
+            return False, "different_date"
 
         source_a = a["source"]
         source_b = b["source"]
@@ -88,14 +101,14 @@ class ComplaintDeduplicator:
             source_a == "platform_review"
             and source_b == "platform_review"
         ):
-            return False
+            return False, "platform_vs_platform"
 
         # Platform review ↔ internal report
         if (
             source_a == "platform_review"
             or source_b == "platform_review"
         ):
-            return True
+            return True, "platform_internal"
 
         rooms_a = self.get_rooms(a["room"])
         rooms_b = self.get_rooms(b["room"])
@@ -104,13 +117,19 @@ class ComplaintDeduplicator:
         # same room is a strong candidate signal.
         if rooms_a and rooms_b:
 
-            return bool(
-                rooms_a.intersection(rooms_b)
+            shared = rooms_a.intersection(rooms_b)
+
+            return (
+                bool(shared),
+                "same_room:" + ",".join(sorted(shared)),
             )
 
         # Missing room information:
         # let LLM decide.
-        return True
+        return True, "missing_room"
+
+    def is_candidate(self, a, b):
+        return self._evaluate_candidate(a, b)[0]
 
     def generate_candidates(self):
 
@@ -130,7 +149,11 @@ class ComplaintDeduplicator:
 
                 _, b = records[j]
 
-                if not self.is_candidate(a, b):
+                is_candidate, reason = (
+                    self._evaluate_candidate(a, b)
+                )
+
+                if not is_candidate:
                     continue
 
                 candidates.append({
@@ -143,6 +166,10 @@ class ComplaintDeduplicator:
                     "source_file_b": b["source_file"],
                     "room_a": a["room"],
                     "room_b": b["room"],
+                    "candidate_reason": reason,
                 })
 
-        return pd.DataFrame(candidates)
+        return pd.DataFrame(
+            candidates,
+            columns=CANDIDATE_COLUMNS,
+        )

@@ -98,6 +98,13 @@ def contains_pattern(text: str, patterns: list[str]) -> bool:
     )
 
 
+def first_match(text: str, patterns: list[str]):
+    for pattern in patterns:
+        if re.search(pattern, text, re.IGNORECASE):
+            return pattern
+    return None
+
+
 def is_pure_positive(text: str) -> bool:
     """
     判断一条记录是否可以安全过滤。
@@ -121,19 +128,85 @@ def is_pure_positive(text: str) -> bool:
     return contains_pattern(text, POSITIVE_PATTERNS)
 
 
+def analyze_record(text):
+    """Classify a record as kept or dropped, with the matched patterns."""
+    if not isinstance(text, str) or not text.strip():
+        return {
+            "decision": "kept",
+            "reason": "empty",
+            "matched_issue_pattern": None,
+            "matched_positive_pattern": None,
+        }
+
+    text = text.strip()
+
+    issue_pattern = first_match(text, ISSUE_PATTERNS)
+    positive_pattern = first_match(text, POSITIVE_PATTERNS)
+
+    if issue_pattern is not None:
+        decision = "kept"
+        reason = "has_issue"
+    elif positive_pattern is not None:
+        decision = "dropped"
+        reason = "pure_positive"
+    else:
+        decision = "kept"
+        reason = "no_signal"
+
+    return {
+        "decision": decision,
+        "reason": reason,
+        "matched_issue_pattern": issue_pattern,
+        "matched_positive_pattern": positive_pattern,
+    }
+
+
+def filter_positive_audited(df: pd.DataFrame):
+    """
+    Remove pure positive reviews and return both the kept records
+    and a per-record audit table.
+    """
+    analyses = [
+        analyze_record(text)
+        for text in df["raw_content"]
+    ]
+
+    dropped = [
+        analysis["decision"] == "dropped"
+        for analysis in analyses
+    ]
+
+    audit_records = []
+
+    for (_, row), analysis in zip(
+        df.iterrows(),
+        analyses,
+    ):
+        audit_records.append({
+            "complaint_id": row["complaint_id"],
+            "record_id": row["record_id"],
+            "incident_date": row.get("incident_date"),
+            "source": row.get("source"),
+            "source_file": row.get("source_file"),
+            "raw_content": row["raw_content"],
+            **analysis,
+        })
+
+    audit_df = pd.DataFrame(audit_records)
+    filtered_df = df.loc[[not d for d in dropped]].copy()
+
+    print(
+        f"Positive filter: "
+        f"{sum(dropped)} dropped, "
+        f"{len(filtered_df)} remaining."
+    )
+
+    return filtered_df, audit_df
+
+
 def filter_positive(df: pd.DataFrame) -> pd.DataFrame:
     """
     删除纯正面评价，返回剩余记录。
     """
-    mask = df["raw_content"].apply(is_pure_positive)
-
-    dropped_count = int(mask.sum())
-    remaining_count = len(df) - dropped_count
-
-    print(
-        f"Positive filter: "
-        f"{dropped_count} dropped, "
-        f"{remaining_count} remaining."
-    )
-
-    return df.loc[~mask].copy()
+    filtered_df, _ = filter_positive_audited(df)
+    return filtered_df

@@ -90,6 +90,44 @@ class LLMSplit:
             finish_with_newline=True,
         )
 
+    def split_batch_audited(
+        self,
+        contents,
+        max_concurrency=10,
+    ):
+        """
+        Batch split while also returning the anchors the LLM proposed.
+
+        Returns a list of dicts with "parts" and "anchors".
+        """
+
+        messages = [
+            self.prompt.format_messages(
+                content=content,
+            )
+            for content in contents
+        ]
+
+        def parse(index, text):
+            split_points = self.parse_response(text)
+            parts = self.split_content(
+                contents[index],
+                split_points,
+            )
+            return {
+                "parts": parts,
+                "anchors": split_points,
+            }
+
+        return process_batch(
+            self.llm,
+            messages,
+            parse,
+            max_concurrency=max_concurrency,
+            progress_label="Split progress",
+            finish_with_newline=True,
+        )
+
 
     # ==================================================
     # Parse LLM Response

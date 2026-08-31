@@ -284,6 +284,9 @@ def normalize_record(record):
     result = {
         "complaint_id": record["complaint_id"],
         "record_id": record["record_id"],
+        "source_complaint_id": record.get(
+            "source_complaint_id"
+        ),
     }
 
     for column in METADATA_COLUMNS:
