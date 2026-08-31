@@ -4,6 +4,7 @@ import pandas as pd
 import plotly.express as px
 from plotly.io import to_html
 from config import RuntimePaths
+from fields import CATEGORY_MAP, SUBCATEGORY_MAP
 
 
 # ==================================================
@@ -12,53 +13,6 @@ from config import RuntimePaths
 PATHS = RuntimePaths.from_environment()
 INPUT_FILE = PATHS.stage_file("07_structured_complaints.csv")
 OUTPUT_FILE = PATHS.dashboard_file
-
-
-CATEGORY_MAP = {
-    "A": "客房卫生与房态",
-    "B": "客房设施与工程",
-    "C": "服务与响应",
-    "D": "噪音与公共环境",
-    "E": "预订、房型与费用",
-    "F": "物品、安全与其他",
-}
-
-
-SUBCATEGORY_MAP = {
-    "A1": "房间清洁不到位",
-    "A2": "布草问题",
-    "A3": "虫害",
-    "A4": "客用品/备品",
-    "A5": "遗留物",
-    "A6": "房态/查房问题",
-
-    "B1": "功能故障",
-    "B2": "水电与温控",
-    "B3": "房间结构与装修",
-    "B4": "设施体验问题",
-    "B5": "其他设施",
-
-    "C1": "响应延迟",
-    "C2": "服务执行不到位",
-    "C3": "服务态度",
-    "C4": "沟通/信息错误",
-
-    "D1": "客房/楼层噪音",
-    "D2": "公共区域活动噪音",
-    "D3": "团队/客人行为噪音",
-    "D4": "隔音问题",
-
-    "E1": "预订/渠道信息",
-    "E2": "房型不符",
-    "E3": "价格争议",
-    "E4": "退款/取消",
-    "E5": "延时退房",
-
-    "F1": "客遗物品",
-    "F2": "人身安全",
-    "F3": "特殊需求",
-    "F4": "其他",
-}
 
 
 CATEGORY_COLOR_MAP = {
@@ -577,7 +531,7 @@ Complaint Analysis Dashboard
 # 11. Export dashboard
 # ==================================================
 
-PATHS.ensure_dashboard_dir()
+PATHS.ensure_report_dir()
 
 with open(
     OUTPUT_FILE,

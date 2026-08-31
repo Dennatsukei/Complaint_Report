@@ -22,6 +22,10 @@ from fields import (
     METADATA_COLUMNS,
     NORMALIZED_FILE,
     PREPARED_FILE,
+    REVIEW_DEDUP_FILE,
+    REVIEW_ISSUE_FILE,
+    REVIEW_NO_ISSUE_FILE,
+    REVIEW_SPLIT_FILE,
     RUN_SUMMARY_FILE,
     SPLIT_AUDIT_FILE,
     SPLIT_COMPLAINTS_FILE,
@@ -31,6 +35,7 @@ from fields import (
 from filter import filter_positive_audited
 from ingestion import ComplaintAggregator, ComplaintExtractor
 from llm_dedup import LLMDeduplicator
+from review_reports import write_review_reports
 from split import LLMSplit
 from structurer import LLMStructurer
 from transforms import normalize_dataframe, process_record
@@ -785,6 +790,11 @@ def run_pipeline(paths=None):
     else:
         split_df = None
 
+    write_review_reports(
+        paths,
+        targets={REVIEW_SPLIT_FILE},
+    )
+
     if start_index <= STAGES.index("normalize") <= end_index:
         normalized_df = normalize_stage(paths, split_df)
     elif STAGES.index("normalize") < start_index:
@@ -810,6 +820,11 @@ def run_pipeline(paths=None):
     else:
         deduplicated_df = None
         dedup_stats = {}
+
+    write_review_reports(
+        paths,
+        targets={REVIEW_DEDUP_FILE},
+    )
 
     if start_index <= STAGES.index("filter") <= end_index:
         filtered_df = filter_stage(
@@ -839,6 +854,11 @@ def run_pipeline(paths=None):
     else:
         structured_df = None
 
+    write_review_reports(
+        paths,
+        targets={REVIEW_NO_ISSUE_FILE},
+    )
+
     if (
         structured_df is not None
         and filtered_df is not None
@@ -850,6 +870,11 @@ def run_pipeline(paths=None):
         )
     else:
         issue_review_df = pd.DataFrame()
+
+    write_review_reports(
+        paths,
+        targets={REVIEW_ISSUE_FILE},
+    )
 
     counts = {}
 

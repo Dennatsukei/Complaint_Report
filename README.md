@@ -24,7 +24,7 @@ prompts/            # LLM prompt
 src/                # 源码
 outputs/
   runs/<RUN_ID>/    # 每轮运行的中间产物与摘要
-  dashboard/        # Dashboard HTML
+  reports/<RUN_ID>/ # 人工审核报告与 Dashboard
 ```
 
 ## 环境准备
@@ -56,7 +56,7 @@ python src/main.py
 | 变量 | 默认值 | 说明 |
 | --- | --- | --- |
 | `INPUT_DIR` | `inputs/samples` | 输入目录，需包含 `daily_reports`、`weekly_reports`、`monthly_reports`、`platform_reviews` |
-| `RUN_ID` | `sample` | 运行目录名，产物输出到 `outputs/runs/<RUN_ID>` |
+| `RUN_ID` | `sample` | 运行目录名，中间产物输出到 `outputs/runs/<RUN_ID>`，报告输出到 `outputs/reports/<RUN_ID>` |
 | `START_FROM` | `extract` | 起始阶段 |
 | `END_FROM` | `structure` | 结束阶段 |
 | `LLM_API_KEY` | 无 | LLM API Key |
@@ -99,7 +99,13 @@ python src/main.py
 
 - `outputs/runs/<RUN_ID>/01_ingested_records.csv` 至 `08_issue_review.csv`：各阶段产物
 - `outputs/runs/<RUN_ID>/run_summary.json`：运行摘要，包含起止阶段、计数和产物列表
-- `outputs/dashboard/dashboard.html`：自动生成的 Dashboard
+- `outputs/reports/<RUN_ID>/review_split.md`：Split 实际拆分条目的人工审核报告
+- `outputs/reports/<RUN_ID>/review_dedup.md`：去重条目对照的人工审核报告
+- `outputs/reports/<RUN_ID>/review_no_issue.md`：Structurer 判定无问题条目的人工审核报告
+- `outputs/reports/<RUN_ID>/review_issue_review.md`：面向人工阅读的 Issue 审核报告
+- `outputs/reports/<RUN_ID>/dashboard.html`：自动生成的 Dashboard
+
+带 `review_` 前缀的报告只包含人工检验需要的字段，仅用于阅读，不会被后续流程读取。
 
 如果当前运行没有包含 `structure` 阶段，Dashboard 会自动跳过；也可以单独运行 `python src/analysis.py` 重新生成当前 `RUN_ID` 对应的看板。
 

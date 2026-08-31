@@ -22,7 +22,7 @@ def _resolve_path(project_root: Path, value: str) -> Path:
 
 
 def _validate_run_id(run_id: str) -> str:
-    """Keep generated artifacts inside ``outputs/runs``."""
+    """Keep generated artifacts inside ``outputs/runs`` and ``outputs/reports``."""
     candidate = Path(run_id)
 
     if not run_id or candidate.name != run_id or run_id in {".", ".."}:
@@ -60,13 +60,25 @@ class RuntimePaths:
 
     @property
     def dashboard_file(self) -> Path:
-        return self.project_root / "outputs" / "dashboard" / "dashboard.html"
+        return self.report_dir / "dashboard.html"
+
+    @property
+    def report_dir(self) -> Path:
+        return (
+            self.project_root
+            / "outputs"
+            / "reports"
+            / self.run_id
+        )
 
     def stage_file(self, filename: str) -> Path:
         return self.run_dir / filename
 
+    def report_file(self, filename: str) -> Path:
+        return self.report_dir / filename
+
     def ensure_run_dir(self) -> None:
         self.run_dir.mkdir(parents=True, exist_ok=True)
 
-    def ensure_dashboard_dir(self) -> None:
-        self.dashboard_file.parent.mkdir(parents=True, exist_ok=True)
+    def ensure_report_dir(self) -> None:
+        self.report_dir.mkdir(parents=True, exist_ok=True)
