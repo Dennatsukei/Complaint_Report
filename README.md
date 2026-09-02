@@ -1,6 +1,6 @@
-# 酒店客诉分析流水线
+# 酒店客诉分析脚本
 
-将日/周/月报表和平台评价整理成统一的投诉记录，经过拆分、归一化、去重、过滤和结构化，最后自动生成可视化 Dashboard。
+将不同格式的日/周/月报表和平台评价整理成统一的投诉记录，经过拆分、归一化、去重、过滤和结构化，最后自动生成可视化 Dashboard。
 
 ## 功能流程
 
@@ -124,17 +124,3 @@ python src/main.py
 带 `review_` 前缀的报告只包含人工检验需要的字段，仅用于阅读，不会被后续流程读取。
 
 如果当前运行没有包含 `structure` 阶段，Dashboard 会自动跳过；也可以单独运行 `python src/analysis.py` 重新生成当前 `RUN_ID` 对应的看板。
-
-## 常见问题
-
-**提示 LLM 配置缺失**
-
-选择启动菜单中的“设置环境变量”，或编辑 `.env` 补齐 `LLM_API_KEY`、`LLM_BASE_URL`、`LLM_MODEL`。
-
-**提示缺少上游产物**
-
-当前 `RUN_ID` 下还没有对应阶段的中间文件。先用 sample data 跑一次全流程，或把 `START_FROM` 改回 `extract`。
-
-**Dashboard 没有生成**
-
-检查当前运行是否包含 `structure` 阶段，并确认 `outputs/runs/<RUN_ID>/07_structured_complaints.csv` 存在。
