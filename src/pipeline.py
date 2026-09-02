@@ -35,6 +35,7 @@ from fields import (
 from filter import filter_positive_audited
 from ingestion import ComplaintAggregator, ComplaintExtractor
 from llm_dedup import LLMDeduplicator
+from redaction import resolve_mode
 from review_reports import write_review_reports
 from split import LLMSplit
 from structurer import LLMStructurer
@@ -715,6 +716,7 @@ def write_run_summary(paths, start_from, end_from, counts):
             "LLM_MODEL",
             "unknown",
         ),
+        "masking_mode": resolve_mode(),
         "counts": counts,
         "artifacts": sorted(
             name

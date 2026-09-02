@@ -14,6 +14,7 @@ from pipeline import (
     resolve_start_from,
     run_pipeline,
 )
+from redaction import resolve_mode
 
 
 DEFAULT_INPUT_DIR = "inputs/samples"
@@ -54,6 +55,11 @@ def _llm_keys_missing() -> list[str]:
 def _print_runtime_status() -> None:
     llm_ready = not _llm_keys_missing()
 
+    try:
+        masking_mode = resolve_mode()
+    except ValueError as exc:
+        masking_mode = str(exc)
+
     print("\nComplaint Analysis Pipeline")
     print("=" * 72)
 
@@ -68,6 +74,7 @@ def _print_runtime_status() -> None:
     print(f"  起始阶段     (START_FROM) : {_current('START_FROM', 'extract')}")
     print(f"  结束阶段     (END_FROM)   : {_current('END_FROM', 'structure')}")
     print(f"  LLM 配置                  : {'已配置' if llm_ready else '未配置'}")
+    print(f"  出站脱敏     (MASKING_MODE) : {masking_mode}")
     print("=" * 72)
 
 

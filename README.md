@@ -62,6 +62,7 @@ python src/main.py
 | `LLM_API_KEY` | 无 | LLM API Key |
 | `LLM_BASE_URL` | 无 | LLM Base URL，例如 `https://api.deepseek.com/v1` |
 | `LLM_MODEL` | 无 | LLM 模型名，例如 `deepseek-chat` |
+| `MASKING_MODE` | `pii` | 第三方 LLM 出站脱敏模式：`off` 关闭；`pii` 屏蔽直接标识符与房号；`strict` 额外屏蔽金额 |
 
 `.env` 示例：
 
@@ -69,11 +70,26 @@ python src/main.py
 LLM_API_KEY=your_api_key
 LLM_BASE_URL=https://api.deepseek.com/v1
 LLM_MODEL=deepseek-chat
+MASKING_MODE=pii
 INPUT_DIR=inputs/samples
 RUN_ID=sample
 ```
 
 `.env` 已被 `.gitignore` 忽略，请勿把真实密钥提交到版本库。
+
+## 出站脱敏
+
+Split / Dedup / Structurer 阶段会把投诉正文发送给第三方 LLM API。程序在发送前
+对该文本统一脱敏（在 `src/llm_runtime.py` 的模型调用层拦截），并默认开启：
+
+- 直接标识符：手机号、座机、证件号、邮箱、网址、微信/QQ/订单号/账号、带称呼的
+  姓名（如 `王先生`）会被替换为类型化占位符；
+- 房号（准标识符）会被替换为稳定占位符：同一房号在同一运行内始终映射为同一
+  token，因此去重阶段仍可识别“同房同事件”；响应中出现的占位符（如拆分 anchor）
+  会在本地还原后再写盘。
+
+中间产物、审核报告和 Dashboard 仍然保存原始文本，不因脱敏改变。切换
+`MASKING_MODE=off` 可关闭脱敏用于对比实验；模式会写入 `run_summary.json`。
 
 ## 自定义运行范围
 
