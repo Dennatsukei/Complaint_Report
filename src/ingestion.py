@@ -191,23 +191,32 @@ class ComplaintExtractor:
                     day2
                 ) = match.groups()
 
-                start_date = date(
-                    int(year1),
-                    int(month1),
-                    int(day1)
-                )
+                try:
+                    start_date = date(
+                        int(year1),
+                        int(month1),
+                        int(day1)
+                    )
 
-                if month2 is None:
-                    return start_date, start_date
+                    if month2 is None:
+                        return start_date, start_date
 
-                if year2 is None:
-                    year2 = year1
+                    if year2 is None:
+                        year2 = year1
 
-                end_date = date(
-                    int(year2),
-                    int(month2),
-                    int(day2)
-                )
+                    end_date = date(
+                        int(year2),
+                        int(month2),
+                        int(day2)
+                    )
+
+                except ValueError as exc:
+                    raise ValueError(
+                        "Unparseable report date in cell "
+                        f"{cell.coordinate} of "
+                        f"{self.file_path.name}: "
+                        f"{text!r} ({exc})"
+                    ) from exc
 
                 return start_date, end_date
 

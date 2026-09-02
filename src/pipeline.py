@@ -124,6 +124,20 @@ def _save_stage(df, paths, filename, message):
 # Stages
 # =========================================================
 
+def _extract_with_context(path, label, method_name):
+    """Run one extractor with a file-scoped error message."""
+    try:
+        extractor = ComplaintExtractor(path)
+        return getattr(extractor, method_name)()
+    except Exception as exc:
+        raise RuntimeError(
+            f"Failed to extract {label}.\n"
+            f"  File   : {path}\n"
+            f"  Reason : "
+            f"{type(exc).__name__}: {exc}"
+        ) from exc
+
+
 def extract_stage(paths):
     aggregator = ComplaintAggregator()
 
@@ -141,9 +155,11 @@ def extract_stage(paths):
             if not path.is_file():
                 continue
 
-            extractor = ComplaintExtractor(path)
-
-            report = getattr(extractor, extract_method)()
+            report = _extract_with_context(
+                path,
+                f"{folder_name} report",
+                extract_method,
+            )
 
             aggregator.add_report(report)
 
@@ -156,9 +172,11 @@ def extract_stage(paths):
         if not path.is_file():
             continue
 
-        extractor = ComplaintExtractor(path)
-
-        reviews = extractor.extract_reviews()
+        reviews = _extract_with_context(
+            path,
+            "platform reviews",
+            "extract_reviews",
+        )
 
         aggregator.add_platform_reviews(reviews)
 
