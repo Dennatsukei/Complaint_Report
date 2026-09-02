@@ -122,7 +122,6 @@ def _write_split_review(paths):
             f"- 来源：{_text(row.get('source_file'))}"
             f"（{_text(row.get('report_type'))}）"
         )
-        lines.append(f"- 日期：{_text(row.get('incident_date'))}")
         lines.append(
             f"- 拆分判断：{_text(row.get('decision'))}"
             f"（{_text(row.get('part_count'))} 段）"
@@ -212,7 +211,6 @@ def _write_dedup_review(paths):
                 f"- 候选原因：{_text(candidate_reason)}"
             )
 
-        lines.append(f"- 日期：{_text(row.get('incident_date'))}")
         lines.append(
             f"- 投诉 A（{_text(row.get('source_file_a'))}）："
             f"{_text(row.get('content_a'))}"
@@ -284,7 +282,6 @@ def _write_no_issue_review(paths):
 
         lines.append(f"## {index}. {complaint_id}")
         lines.append("")
-        lines.append(f"- 日期：{_text(row.get('incident_date'))}")
         lines.append(
             f"- 来源：{_text(row.get('source_file'))}"
             f"（{_text(row.get('report_type'))}）"
@@ -342,7 +339,6 @@ def _write_issue_review(paths):
 
         lines.append(f"## {index}. {complaint_id}")
         lines.append("")
-        lines.append(f"- 日期：{_text(first.get('incident_date'))}")
         lines.append(
             f"- 来源：{_text(first.get('source_file'))}"
             f"（{_text(first.get('report_type'))}）"
