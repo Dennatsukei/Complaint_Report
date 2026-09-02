@@ -1,25 +1,9 @@
-"""Outbound redaction for third-party LLM requests.
-
-The pipeline sends free-text complaint content to external chat models
-in the split, dedup and structure stages.  This module masks direct
-identifiers (phone numbers, ID numbers, e-mail addresses, ...) and the
-room numbers that appear in that text before the request leaves the
-machine, while leaving every locally stored artifact unchanged.
-
-Masking is reversible only inside the running process: each unique
-original value is mapped to a stable, type-labelled token, so:
-
-* the same room number keeps the same token across messages of one run
-  (dedup can still rely on a shared "same room" signal), and
-* response text such as split anchors can be translated back to the
-  original content before it is used or stored locally.
-"""
-
 from __future__ import annotations
 
 import hashlib
 import os
 import re
+from pathlib import Path
 
 
 MODE_OFF = "off"
@@ -27,6 +11,15 @@ MODE_PII = "pii"
 MODE_STRICT = "strict"
 DEFAULT_MODE = MODE_PII
 VALID_MODES = (MODE_OFF, MODE_PII, MODE_STRICT)
+
+# Employee-list hits are replaced with this plain, non-reversible label.
+PLAIN_REPLACEMENT = "工作人员"
+_PLAIN_REPLACEMENTS = {"员工": PLAIN_REPLACEMENT}
+
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+EMPLOYEE_NAMES_FILE = (
+    PROJECT_ROOT / "configs" / "employee_names.txt"
+)
 
 
 # Common Chinese surnames used to recognise personal-name mentions that
@@ -46,13 +39,143 @@ _SURNAMES = (
 )
 
 
+def _load_employee_names() -> list[str]:
+    """Read employee names from the local roster file.
+
+    The file is optional; when missing or empty the roster rules are
+    simply inactive.  One name per line, ``#`` starts a comment line.
+    Both UTF-8 (with or without BOM) and GBK are accepted.
+    """
+    if not EMPLOYEE_NAMES_FILE.exists():
+        return []
+
+    text: str | None = None
+
+    for encoding in ("utf-8-sig", "gbk"):
+        try:
+            text = EMPLOYEE_NAMES_FILE.read_text(encoding=encoding)
+            break
+        except UnicodeDecodeError:
+            continue
+
+    if text is None:
+        return []
+
+    names: list[str] = []
+
+    for raw in text.splitlines():
+        name = raw.strip()
+
+        if not name or name.startswith("#"):
+            continue
+
+        names.append(name)
+
+    # De-duplicate while preserving file order.
+    return list(dict.fromkeys(names))
+
+
+def _compile_employee_patterns(
+    names: list[str],
+) -> tuple[re.Pattern[str] | None, re.Pattern[str] | None]:
+    """Compile roster names into Chinese and English matchers.
+
+    Longer names are tried first so that a full name takes precedence
+    over a shorter given name that happens to be its suffix.  English
+    names match case-insensitively and only on letter boundaries, so
+    ``John`` is not matched inside ``Johnson``.
+    """
+    chinese_names: list[str] = []
+    english_names: list[str] = []
+
+    for name in names:
+        if any(
+            char.isascii() and char.isalpha()
+            for char in name
+        ):
+            english_names.append(name)
+        else:
+            chinese_names.append(name)
+
+    chinese_pattern: re.Pattern[str] | None = None
+
+    if chinese_names:
+        alternatives = "|".join(
+            re.escape(name)
+            for name in sorted(
+                chinese_names,
+                key=len,
+                reverse=True,
+            )
+        )
+        chinese_pattern = re.compile(alternatives)
+
+    english_pattern: re.Pattern[str] | None = None
+
+    if english_names:
+        alternatives = "|".join(
+            f"(?<![A-Za-z]){re.escape(name)}(?![A-Za-z])"
+            for name in sorted(
+                english_names,
+                key=len,
+                reverse=True,
+            )
+        )
+        english_pattern = re.compile(
+            alternatives,
+            re.IGNORECASE,
+        )
+
+    return chinese_pattern, english_pattern
+
+
+_EMPLOYEE_NAMES = _load_employee_names()
+_EMPLOYEE_CN_PATTERN, _EMPLOYEE_EN_PATTERN = (
+    _compile_employee_patterns(_EMPLOYEE_NAMES)
+)
+
+
+def employee_name_count() -> int:
+    """Number of employee names loaded from the local roster file."""
+    return len(_EMPLOYEE_NAMES)
+
+
+def _employee_matches(text: str):
+    """Yield (start, end, kind) spans for employee roster hits.
+
+    A name directly followed by 先生/女士/小姐 takes the honorific
+    along so that e.g. "王小明先生" collapses into "工作人员".
+    """
+    for pattern in (
+        _EMPLOYEE_EN_PATTERN,
+        _EMPLOYEE_CN_PATTERN,
+    ):
+        if pattern is None:
+            continue
+
+        for match in pattern.finditer(text):
+            start = match.start()
+            end = match.end()
+
+            if text[end : end + 2] in (
+                "先生",
+                "女士",
+                "小姐",
+            ):
+                end += 2
+
+            if end > start:
+                yield start, end, "员工"
+
+
 def _compile_rules(mode: str) -> list[tuple[str, re.Pattern[str]]]:
     """Return the (kind, regex) rule set for a masking mode."""
     cn = "\u4e00-\u9fa5"
 
     rules: list[tuple[str, re.Pattern[str]]] = [
-        # Room numbers such as "5052房" or "5052房间".
-        ("房号", re.compile(r"(?<!\d)\d{4}房(?:间)?")),
+        # Room numbers such as "5052房", "5052房间" or "3097F房间"
+        # (an optional trailing f/F suffix belongs to the room number).
+        ("房号", re.compile(r"(?<!\d)\d{4}[fF]?房(?:间)?")),
         # China mobile numbers, with or without separators and +86 prefix.
         (
             "电话",
@@ -101,6 +224,27 @@ def _compile_rules(mode: str) -> list[tuple[str, re.Pattern[str]]]:
             re.compile(
                 rf"(?:[{_SURNAMES}])[{cn}]{{0,2}}"
                 rf"(?=(?:先生|女士|小姐))"
+            ),
+        ),
+        # Surname (plus given part) directly followed by a job title or
+        # a familiar form of address, e.g. 戴经理 / 王哥 / 奚文强经理.
+        # The title itself is kept.  The negative lookbehind avoids false
+        # positives such as 工程师傅 or 客房经理 where the surname
+        # character is really the tail of a common noun.
+        (
+            "姓名",
+            re.compile(
+                rf"(?<![工客])(?:[{_SURNAMES}])[{cn}]{{0,2}}"
+                rf"(?=(?:经理|主管|领班|主任|店长|班长|负责人|师傅|姐|哥))"
+            ),
+        ),
+        # Label-style guest fields such as "姓名：施迎春".  Only the
+        # value following the label is replaced.
+        (
+            "姓名",
+            re.compile(
+                rf"(?:姓名|名字|住客姓名|客人姓名|顾客姓名)"
+                rf"[：:]\s*([{cn}\u00b7A-Za-z]{{2,12}})"
             ),
         ),
     ]
@@ -207,6 +351,11 @@ def mask_text(
                     (start, end, kind, text[start:end])
                 )
 
+    for start, end, kind in _employee_matches(text):
+        matches.append(
+            (start, end, kind, text[start:end])
+        )
+
     if not matches:
         return text
 
@@ -222,7 +371,14 @@ def mask_text(
             continue
 
         parts.append(text[cursor:start])
-        parts.append(registry.token_for(value, kind))
+
+        plain = _PLAIN_REPLACEMENTS.get(kind)
+
+        if plain is None:
+            parts.append(registry.token_for(value, kind))
+        else:
+            parts.append(plain)
+
         cursor = end
         covered_end = end
 

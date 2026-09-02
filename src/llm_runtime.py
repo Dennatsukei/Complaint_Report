@@ -10,6 +10,7 @@ from config import RuntimePaths
 from redaction import (
     MODE_OFF,
     MaskingRegistry,
+    employee_name_count,
     mask_text,
     resolve_mode,
 )
@@ -23,7 +24,16 @@ def _announce_masking(mode: str) -> None:
     global _MASKING_ANNOUNCED
 
     if not _MASKING_ANNOUNCED:
-        print(f"Outbound LLM masking enabled (mode={mode}).")
+        employee_count = employee_name_count()
+        roster = (
+            f", employee names: {employee_count}"
+            if employee_count
+            else ""
+        )
+        print(
+            "Outbound LLM masking enabled "
+            f"(mode={mode}{roster})."
+        )
         _MASKING_ANNOUNCED = True
 
 

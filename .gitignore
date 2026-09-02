@@ -16,3 +16,6 @@ outputs/
 
 # Environment variables / API keys
 .env
+
+# Local employee roster (contains personal names)
+configs/employee_names.txt

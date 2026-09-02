@@ -14,7 +14,12 @@ from pipeline import (
     resolve_start_from,
     run_pipeline,
 )
-from redaction import resolve_mode
+from redaction import (
+    MODE_OFF,
+    EMPLOYEE_NAMES_FILE,
+    employee_name_count,
+    resolve_mode,
+)
 
 
 DEFAULT_INPUT_DIR = "inputs/samples"
@@ -57,8 +62,10 @@ def _print_runtime_status() -> None:
 
     try:
         masking_mode = resolve_mode()
+        masking_off = masking_mode == MODE_OFF
     except ValueError as exc:
         masking_mode = str(exc)
+        masking_off = False
 
     print("\nComplaint Analysis Pipeline")
     print("=" * 72)
@@ -75,6 +82,39 @@ def _print_runtime_status() -> None:
     print(f"  结束阶段     (END_FROM)   : {_current('END_FROM', 'structure')}")
     print(f"  LLM 配置                  : {'已配置' if llm_ready else '未配置'}")
     print(f"  出站脱敏     (MASKING_MODE) : {masking_mode}")
+
+    hints: list[str] = []
+
+    if not ENV_FILE.exists():
+        hints.append(
+            "未找到项目根目录的 .env 文件：运行配置只在当前进程内生效，"
+            "不会持久保存。可创建 .env 文件（字段见 README「环境变量」），"
+            "或直接在系统中设置 LLM_API_KEY / LLM_BASE_URL / LLM_MODEL。"
+        )
+
+    if not masking_off:
+        roster_path = (
+            EMPLOYEE_NAMES_FILE.relative_to(PROJECT_ROOT)
+        )
+
+        if not EMPLOYEE_NAMES_FILE.exists():
+            hints.append(
+                f"未找到员工脱敏名单 {roster_path}：名单中的员工姓名不会"
+                "替换为“工作人员”。创建该文件后每行填写一个姓名即可生效"
+                "（格式见 configs/README.md）。"
+            )
+        elif employee_name_count() == 0:
+            hints.append(
+                f"员工脱敏名单 {roster_path} 目前为空：员工姓名替换未启用，"
+                "在文件中逐行填写姓名后即可生效。"
+            )
+
+    if hints:
+        print("\n配置提示：")
+
+        for hint in hints:
+            print(f"  ! {hint}")
+
     print("=" * 72)
 
 
