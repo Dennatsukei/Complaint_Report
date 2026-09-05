@@ -57,12 +57,24 @@ class ComplaintExtractor:
         Extract a weekly report.
 
         Weekly report:
-        - complaints are stored in a table
+        - complaints are usually stored in an event table
         - incident date comes from the date column
+
+        Fallback: some weekly files are written in the numbered
+        complaint-section layout of daily/monthly reports (e.g. a
+        "客诉及处理方案" section). In that case the incident date
+        is parsed from the complaint content, bounded by the
+        report period.
         """
         report_start_date, report_end_date = self.extract_report_date()
 
-        complaints = self._extract_event_table()
+        if self._find_event_table_header() is not None:
+            complaints = self._extract_event_table()
+        else:
+            complaints = self._extract_complaint_section(
+                report_start_date=report_start_date,
+                report_end_date=report_end_date
+            )
 
         complaints = self._add_report_period(
             complaints,
