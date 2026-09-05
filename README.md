@@ -38,7 +38,7 @@ pip install -r requirements.txt
 ## 运行方式
 
 傻瓜化入口：在 Windows 资源管理器中直接双击项目根目录的
-`启动分析.bat`，会自动使用 `.venv` 打开终端并启动 `src/main.py`；
+`启动.bat`，会自动使用 `.venv` 打开终端并启动 `src/main.py`；
 运行结束按任意键关闭窗口。缺少 `.venv` 或 Python 时，脚本会给出安装指引。
 
 Linux / macOS 请在项目根目录执行：
@@ -88,6 +88,8 @@ RUN_ID=sample
 ```
 
 `.env` 已被 `.gitignore` 忽略，请勿把真实密钥提交到版本库。
+仓库提供不含密钥的模板 `.env.example`：复制为 `.env` 后填入自己的
+`LLM_API_KEY` 即可使用（Base URL / 模型名如无特殊需求保持默认）。
 
 ## 出站脱敏
 

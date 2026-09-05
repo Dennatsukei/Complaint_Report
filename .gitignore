@@ -19,3 +19,6 @@ outputs/
 
 # Local employee roster (contains personal names)
 configs/employee_names.txt
+
+# Agent onboarding guide (internal, not for the repo)
+AGENT_GUIDE.md
