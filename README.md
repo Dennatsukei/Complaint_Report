@@ -72,16 +72,16 @@ python src/main.py
 | `START_FROM` | `extract` | 起始阶段 |
 | `END_FROM` | `structure` | 结束阶段 |
 | `LLM_API_KEY` | 无 | LLM API Key |
-| `LLM_BASE_URL` | 无 | LLM Base URL，例如 `https://api.deepseek.com/v1` |
-| `LLM_MODEL` | 无 | LLM 模型名，例如 `deepseek-chat` |
+| `LLM_BASE_URL` | 无 | LLM Base URL，例如 `https://api.deepseek.com` |
+| `LLM_MODEL` | 无 | LLM 模型名，例如 `deepseek-v4-flash` |
 | `MASKING_MODE` | `pii` | 第三方 LLM 出站脱敏模式：`off` 关闭；`pii` 屏蔽直接标识符与房号；`strict` 额外屏蔽金额 |
 
 `.env` 示例：
 
 ```dotenv
 LLM_API_KEY=your_api_key
-LLM_BASE_URL=https://api.deepseek.com/v1
-LLM_MODEL=deepseek-chat
+LLM_BASE_URL=https://api.deepseek.com
+LLM_MODEL=deepseek-v4-flash
 MASKING_MODE=pii
 INPUT_DIR=inputs/samples
 RUN_ID=sample

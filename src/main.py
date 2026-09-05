@@ -24,8 +24,8 @@ from redaction import (
 
 DEFAULT_INPUT_DIR = "inputs/samples"
 DEFAULT_RUN_ID = "sample"
-DEFAULT_BASE_URL = "https://api.deepseek.com/v1"
-DEFAULT_MODEL = "deepseek-chat"
+DEFAULT_BASE_URL = "https://api.deepseek.com"
+DEFAULT_MODEL = "deepseek-v4-flash"
 
 LLM_ENV_KEYS = (
     "LLM_API_KEY",
